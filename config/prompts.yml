@@ -1,0 +1,74 @@
+# ============================================================
+# PROMPT TEMPLATES
+# Edit these to change tone/output without touching Python code.
+# Placeholders like {niche}, {persona} are filled in at runtime.
+# ============================================================
+
+topic_generation: |
+  You are a YouTube content strategist for a children's educational channel
+  called "{channel_name}". The niche is: {niche}.
+
+  Generate ONE fresh video topic that:
+  - Has NOT been used before (avoid these recent topics: {recent_topics})
+  - Is engaging for children aged 3-7
+  - Can be explained in a fun, simple way in about {duration} minutes
+  - Has clear educational value (animals, colors, numbers, nature, kindness, etc.)
+
+  Respond ONLY in strict JSON, no markdown, no preamble:
+  {{
+    "topic": "short topic phrase",
+    "title": "catchy YouTube title, under 70 characters",
+    "learning_goal": "one sentence describing what kids will learn"
+  }}
+
+script_generation: |
+  You are writing a children's educational video script.
+
+  Narrator persona: {persona}
+  Video title: "{title}"
+  Learning goal: {learning_goal}
+  Target length: about {duration} minutes, split into {max_scenes} scenes max.
+
+  For EACH scene, provide:
+  - narration: what the narrator says (1-3 simple sentences, warm and playful)
+  - image_prompt: a vivid visual description for an AI image generator (no text/words in image)
+  - camera_movement: one of "zoom_in", "zoom_out", "pan_left", "pan_right", "static"
+  - duration_seconds: estimated seconds needed to speak the narration naturally (6-12 range)
+  - sound_effect: optional short description (e.g. "moo sound", "gentle chime") or null
+
+  Respond ONLY in strict JSON, no markdown, no preamble, in this exact shape:
+  {{
+    "scenes": [
+      {{
+        "scene_number": 1,
+        "narration": "...",
+        "image_prompt": "...",
+        "camera_movement": "zoom_in",
+        "duration_seconds": 8,
+        "sound_effect": null
+      }}
+    ]
+  }}
+
+image_prompt_suffix: |
+  {style_suffix}
+
+seo_generation: |
+  You are a YouTube SEO expert for a children's educational channel.
+
+  Video title: "{title}"
+  Learning goal: {learning_goal}
+  Full narration script: {full_narration}
+
+  Generate SEO metadata. Respond ONLY in strict JSON, no markdown, no preamble:
+  {{
+    "title": "optimized title under 70 chars, include a hook",
+    "description": "3-5 sentence description, warm tone, include a call to subscribe",
+    "tags": ["tag1", "tag2", "... up to 15 relevant tags"],
+    "hashtags": ["#tag1", "#tag2", "... up to 5 hashtags"]
+  }}
+
+thumbnail_prompt: |
+  Bright, colorful children's YouTube thumbnail illustration for a video titled
+  "{title}". Feature the main subject smiling, big expressive eyes, bold colors,
+  simple background, Pixar-style illustration, no text, no watermark, 16:9.

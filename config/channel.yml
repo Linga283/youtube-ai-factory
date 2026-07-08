@@ -1,0 +1,66 @@
+# ============================================================
+# CHANNEL CONFIGURATION
+# Change this file to switch niches (kids, facts, motivation, coding...)
+# Everything else in the pipeline reads from here.
+# ============================================================
+
+channel:
+  name: "Kids Learning Adventures"
+  niche: "kids"                     # kids | facts | motivation | coding | history
+  language: "en"
+  target_duration_minutes: 5.5      # aim for 5-6 min videos
+  made_for_kids: true
+
+narrator:
+  persona: "Friendly, warm, cheerful teacher-like narrator who talks to young children (ages 3-7) in simple, joyful sentences."
+  voice_provider: "edge_tts"         # edge_tts (free) | elevenlabs (paid, future)
+  voice_name: "en-US-AnaNeural"      # Edge TTS child-friendly female voice
+  rate: "+0%"
+  pitch: "+0Hz"
+
+branding:
+  intro_video: "templates/intro.mp4"     # optional, skipped if missing
+  outro_video: "templates/outro.mp4"     # optional, skipped if missing
+  logo_image: "assets/logos/logo.png"    # optional watermark
+  background_music: "assets/music/kids_bgm.mp3"  # optional, looped under narration
+  music_volume_db: -22              # how much to duck music under narration
+
+video:
+  resolution: [1920, 1080]
+  fps: 30
+  scene_min_seconds: 6
+  scene_max_seconds: 12
+  ken_burns_zoom: true               # slow zoom/pan on static images
+  subtitle_style:
+    font: "assets/fonts/Poppins-Bold.ttf"
+    font_size: 64
+    color: "&H00FFFFFF"              # white (ASS BGR hex)
+    outline_color: "&H00000000"      # black outline
+    position: "bottom"
+
+image_generation:
+  provider: "gemini"                 # gemini | openai  -- SWITCH HERE, nothing else changes
+  gemini:
+    model: "gemini-2.0-flash-exp"    # update as needed; image-capable model
+    aspect_ratio: "16:9"
+  openai:
+    model: "gpt-image-1"
+    size: "1792x1024"
+  style_suffix: "Pixar style, bright colors, children's book illustration, smiling, simple background, 4K, no text, no watermark"
+  images_per_video: 40               # roughly one per scene beat
+
+script_generation:
+  provider: "gemini"                 # gemini | openai
+  gemini_model: "gemini-2.0-flash-exp"
+  openai_model: "gpt-4o-mini"
+  max_scenes: 10                     # each scene ~30-45 sec of narration
+
+upload:
+  privacy_status: "public"           # public | unlisted | private
+  category_id: "27"                  # YouTube "Education" category
+  default_playlist: "Kids Learning Adventures"
+  schedule: false                    # if true, uses publish_at from run args instead of immediate
+
+history:
+  db_file: "data/video_history.json"  # tracks past topics/titles to avoid repeats
+  max_history_items: 200
