@@ -1,1 +1,68 @@
+name: YouTube AI Factory
 
+on:
+  workflow_dispatch:
+    inputs:
+      skip_upload:
+        description: "Build the video but skip uploading to YouTube"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+  schedule:
+    # Runs every day at 09:00 UTC. Edit or remove as needed.
+    - cron: "0 9 * * *"
+
+jobs:
+  generate-and-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline
+        working-directory: scripts
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          if [ "${{ github.event.inputs.skip_upload }}" = "true" ]; then
+            python main.py --skip-upload
+          else
+            python main.py
+          fi
+
+      - name: Commit updated history file
+        run: |
+          git config user.name "youtube-ai-factory-bot"
+          git config user.email "actions@github.com"
+          git add data/video_history.json || true
+          git diff --cached --quiet || git commit -m "Update video history [skip ci]"
+          git push || true
+
+      - name: Upload video artifact (for manual review)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-video-${{ github.run_id }}
+          path: |
+            output/final.mp4
+            output/thumbnail.jpg
+            data/*.json
+          retention-days: 14
