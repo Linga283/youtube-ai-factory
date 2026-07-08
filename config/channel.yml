@@ -41,7 +41,7 @@ video:
 image_generation:
   provider: "gemini"                 # gemini | openai  -- SWITCH HERE, nothing else changes
   gemini:
-    model: "gemini-2.0-flash-exp"    # update as needed; image-capable model
+    model: "gemini-3.1-flash-image"     # update as needed; image-capable model
     aspect_ratio: "16:9"
   openai:
     model: "gpt-image-1"
@@ -51,7 +51,7 @@ image_generation:
 
 script_generation:
   provider: "gemini"                 # gemini | openai
-  gemini_model: "gemini-2.0-flash-exp"
+  gemini_model: "gemini-3.5-flash" 
   openai_model: "gpt-4o-mini"
   max_scenes: 10                     # each scene ~30-45 sec of narration
 
