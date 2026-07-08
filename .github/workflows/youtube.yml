@@ -32,17 +32,6 @@ jobs:
 
       - name: Install Python dependencies
         run: pip install -r requirements.txt
-        
-      - name: Debug secret presence
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          echo "Key length: ${#GEMINI_API_KEY}"
-          if [ -z "$GEMINI_API_KEY" ]; then
-            echo "GEMINI_API_KEY IS EMPTY"
-          else
-            echo "GEMINI_API_KEY IS SET (not shown for security)"
-          fi
 
       - name: Run pipeline
         working-directory: scripts
