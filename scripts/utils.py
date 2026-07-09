@@ -216,7 +216,6 @@ def _call_replicate_image(prompt: str, cfg: dict, out_path: str):
     api_key = get_env("REPLICATE_API_KEY")
     
     # Use Stable Diffusion 3.5 (fast, reliable, free tier friendly)
-    # Alternative: "black-forest-labs/flux-schnell" (even faster)
     model_config = cfg["image_generation"].get("replicate", {})
     model_name = model_config.get("model", "stability-ai/stable-diffusion-3.5-large")
     width, height = cfg["video"]["resolution"]
@@ -296,19 +295,32 @@ def _get_replicate_model_version(model_name: str, api_key: str) -> str:
     """
     import requests
     
+    # Use the correct Replicate API endpoint with model name
     url = f"https://api.replicate.com/v1/models/{model_name}/versions"
-    headers = {"Authorization": f"Token {api_key}"}
+    headers = {"Authorization": f"Token {api_key}", "Accept": "application/json"}
     
-    resp = requests.get(url, headers=headers, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+    except requests.exceptions.HTTPError as e:
+        # If model not found, provide helpful error
+        if e.response.status_code == 404:
+            raise RuntimeError(
+                f"Model '{model_name}' not found on Replicate. "
+                f"Check the model name at https://replicate.com/explore. "
+                f"Common free tier models: "
+                f"'stability-ai/stable-diffusion-3.5-large', "
+                f"'black-forest-labs/flux-schnell'"
+            )
+        raise
     
     if isinstance(data, dict) and "results" in data:
         versions = data["results"]
     elif isinstance(data, list):
         versions = data
     else:
-        raise ValueError(f"Unexpected response format from Replicate versions API")
+        raise ValueError(f"Unexpected response format from Replicate versions API: {type(data)}")
     
     if not versions:
         raise RuntimeError(f"No versions found for model {model_name}")
