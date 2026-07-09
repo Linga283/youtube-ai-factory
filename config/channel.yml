@@ -39,7 +39,9 @@ video:
     position: "bottom"
 
 image_generation:
-  provider: "pollinations"           # pollinations (free, no key) | gemini (paid) | openai (paid)
+  provider: "replicate"           # replicate (free tier, $25/month) | pollinations (free) | gemini (paid) | openai (paid)
+  replicate:
+    model: "black-forest-labs/flux-pro"    # FLUX Pro (high quality). Fallback: "stability-ai/stable-diffusion-3"
   pollinations:
     model: "flux"                    # free, no billing needed
   gemini:
