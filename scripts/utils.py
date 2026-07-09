@@ -205,34 +205,38 @@ def call_ai_image(prompt: str, provider: str, cfg: dict, out_path: str):
 
 
 def _call_replicate_image(prompt: str, cfg: dict, out_path: str):
-    """Generate image via Replicate using open-source models (Stable Diffusion, FLUX).
+    """Generate image via Replicate using Stable Diffusion or FLUX.
     Free tier: $25/month credit (more than enough for several videos).
     Get a free API key at https://replicate.com and add it as REPLICATE_API_KEY secret.
     Docs: https://replicate.com/docs/
     """
     import requests
     import time
-    import urllib.parse
     
     api_key = get_env("REPLICATE_API_KEY")
     
-    # Use FLUX model (latest, high quality); fallback to Stable Diffusion 3
+    # Use Stable Diffusion 3.5 (fast, reliable, free tier friendly)
+    # Alternative: "black-forest-labs/flux-schnell" (even faster)
     model_config = cfg["image_generation"].get("replicate", {})
-    model = model_config.get("model", "black-forest-labs/flux-pro")
+    model_name = model_config.get("model", "stability-ai/stable-diffusion-3.5-large")
     width, height = cfg["video"]["resolution"]
     
-    # Step 1: Submit the job
+    # Step 1: Get the latest model version ID from Replicate API
+    log(f"Fetching latest version for {model_name}...", "INFO")
+    version_id = _get_replicate_model_version(model_name, api_key)
+    
+    # Step 2: Submit the job
     url = "https://api.replicate.com/v1/predictions"
     headers = {"Authorization": f"Token {api_key}", "Content-Type": "application/json"}
     
     payload = {
-        "version": _get_model_version(model),  # Will fetch the latest version ID
+        "version": version_id,
         "input": {
             "prompt": prompt,
             "width": width,
             "height": height,
-            "num_outputs": 1,
-            "num_inference_steps": 28,
+            "num_inference_steps": 20,
+            "guidance_scale": 7.5,
         }
     }
     
@@ -243,8 +247,8 @@ def _call_replicate_image(prompt: str, cfg: dict, out_path: str):
     
     log(f"Replicate job submitted: {prediction_id}", "INFO")
     
-    # Step 2: Poll for completion
-    max_polls = 180  # ~15 min max wait
+    # Step 3: Poll for completion
+    max_polls = 360  # ~30 min max wait
     poll_interval = 5
     
     for poll_num in range(max_polls):
@@ -262,7 +266,7 @@ def _call_replicate_image(prompt: str, cfg: dict, out_path: str):
                 image_url = output[0]
                 log(f"Image generation complete, downloading...", "INFO")
                 
-                # Step 3: Download the image
+                # Step 4: Download the image
                 img_resp = requests.get(image_url, timeout=30)
                 img_resp.raise_for_status()
                 with open(out_path, "wb") as f:
@@ -286,22 +290,38 @@ def _call_replicate_image(prompt: str, cfg: dict, out_path: str):
     raise RuntimeError(f"Image generation timed out after {max_polls * poll_interval}s")
 
 
-def _get_model_version(model_name: str) -> str:
-    """Map model names to their latest Replicate version IDs.
-    If a new model is added, find its version at https://replicate.com/{owner}/{model}
+def _get_replicate_model_version(model_name: str, api_key: str) -> str:
+    """Fetch the latest version ID for a Replicate model.
+    model_name should be in format: owner/model
     """
-    model_versions = {
-        "black-forest-labs/flux-pro": "0da5c935729f15ba5e16297e7d2557ff1a5bfe89",
-        "black-forest-labs/flux-1": "0da5c935729f15ba5e16297e7d2557ff1a5bfe89",
-        "stability-ai/stable-diffusion-3": "0da5c935729f15ba5e16297e7d2557ff1a5bfe89",
-    }
+    import requests
     
-    if model_name in model_versions:
-        return model_versions[model_name]
+    url = f"https://api.replicate.com/v1/models/{model_name}/versions"
+    headers = {"Authorization": f"Token {api_key}"}
+    
+    resp = requests.get(url, headers=headers, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+    
+    if isinstance(data, dict) and "results" in data:
+        versions = data["results"]
+    elif isinstance(data, list):
+        versions = data
     else:
-        # Default to FLUX Pro
-        log(f"Model {model_name} not recognized, using default FLUX Pro", "WARN")
-        return model_versions["black-forest-labs/flux-pro"]
+        raise ValueError(f"Unexpected response format from Replicate versions API")
+    
+    if not versions:
+        raise RuntimeError(f"No versions found for model {model_name}")
+    
+    # Get the first (latest) version
+    latest_version = versions[0]
+    version_id = latest_version.get("id")
+    
+    if not version_id:
+        raise RuntimeError(f"Could not extract version ID from Replicate response")
+    
+    log(f"Using model version: {version_id[:12]}...", "INFO")
+    return version_id
 
 
 def _call_pollinations_image(prompt: str, cfg: dict, out_path: str):
