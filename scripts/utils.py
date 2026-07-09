@@ -78,30 +78,68 @@ def extract_json(text: str):
 # AI provider abstraction
 # ------------------------------------------------------------------
 def call_ai_text(prompt: str, provider: str, model: str, max_tokens: int = 4096) -> str:
-    """Call a text-generation model (Gemini or OpenAI) and return raw text."""
-    if provider == "gemini":
-        return _call_gemini_text(prompt, model, max_tokens)
-    elif provider == "openai":
-        return _call_openai_text(prompt, model, max_tokens)
-    else:
-        raise ValueError(f"Unknown text provider: {provider}")
+    """Call a text-generation model (Gemini or OpenAI) and return raw text.
+    Retries with exponential backoff on transient errors (503, 429, timeouts)."""
+    import time as _time
+    import requests as _requests
+
+    max_attempts = 5
+    for attempt in range(1, max_attempts + 1):
+        try:
+            if provider == "gemini":
+                return _call_gemini_text(prompt, model, max_tokens)
+            elif provider == "openai":
+                return _call_openai_text(prompt, model, max_tokens)
+            else:
+                raise ValueError(f"Unknown text provider: {provider}")
+        except _requests.exceptions.HTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status in (429, 500, 502, 503, 504) and attempt < max_attempts:
+                wait = min(60, 2 ** attempt)
+                log(f"Transient error ({status}) from {provider}, retrying in {wait}s "
+                    f"(attempt {attempt}/{max_attempts})...", "WARN")
+                _time.sleep(wait)
+                continue
+            raise
+        except (_requests.exceptions.ConnectionError, _requests.exceptions.Timeout) as e:
+            if attempt < max_attempts:
+                wait = min(60, 2 ** attempt)
+                log(f"Network error ({e}), retrying in {wait}s "
+                    f"(attempt {attempt}/{max_attempts})...", "WARN")
+                _time.sleep(wait)
+                continue
+            raise
 
 
 def _call_gemini_text(prompt: str, model: str, max_tokens: int) -> str:
     import requests
+    import time
     api_key = get_env("GEMINI_API_KEY")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.9},
     }
-    resp = requests.post(url, json=payload, timeout=120)
-    resp.raise_for_status()
-    data = resp.json()
-    try:
-        return data["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError):
-        raise ValueError(f"Unexpected Gemini response shape: {json.dumps(data)[:500]}")
+
+    max_retries = 5
+    for attempt in range(1, max_retries + 1):
+        resp = requests.post(url, json=payload, timeout=120)
+        if resp.status_code in (429, 500, 502, 503, 504):
+            wait = min(60, 2 ** attempt)
+            log(f"Gemini returned {resp.status_code}, retrying in {wait}s "
+                f"(attempt {attempt}/{max_retries})...", "WARN")
+            time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        data = resp.json()
+        try:
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except (KeyError, IndexError):
+            raise ValueError(f"Unexpected Gemini response shape: {json.dumps(data)[:500]}")
+
+    raise RuntimeError(f"Gemini API still unavailable after {max_retries} retries "
+                        f"(last status: {resp.status_code}). This is usually a temporary "
+                        f"issue on Google's side - try again in a few minutes.")
 
 
 def _call_openai_text(prompt: str, model: str, max_tokens: int) -> str:
@@ -122,18 +160,44 @@ def _call_openai_text(prompt: str, model: str, max_tokens: int) -> str:
 
 
 def call_ai_image(prompt: str, provider: str, cfg: dict, out_path: str):
-    """Generate a single image and save to out_path."""
-    if provider == "gemini":
-        _call_gemini_image(prompt, cfg, out_path)
-    elif provider == "openai":
-        _call_openai_image(prompt, cfg, out_path)
-    else:
-        raise ValueError(f"Unknown image provider: {provider}")
+    """Generate a single image and save to out_path.
+    Retries with exponential backoff on transient errors (503, 429, timeouts)."""
+    import time as _time
+    import requests as _requests
+
+    max_attempts = 5
+    for attempt in range(1, max_attempts + 1):
+        try:
+            if provider == "gemini":
+                _call_gemini_image(prompt, cfg, out_path)
+            elif provider == "openai":
+                _call_openai_image(prompt, cfg, out_path)
+            else:
+                raise ValueError(f"Unknown image provider: {provider}")
+            return
+        except _requests.exceptions.HTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status in (429, 500, 502, 503, 504) and attempt < max_attempts:
+                wait = min(60, 2 ** attempt)
+                log(f"Transient error ({status}) from {provider} image call, retrying in {wait}s "
+                    f"(attempt {attempt}/{max_attempts})...", "WARN")
+                _time.sleep(wait)
+                continue
+            raise
+        except (_requests.exceptions.ConnectionError, _requests.exceptions.Timeout) as e:
+            if attempt < max_attempts:
+                wait = min(60, 2 ** attempt)
+                log(f"Network error ({e}), retrying in {wait}s "
+                    f"(attempt {attempt}/{max_attempts})...", "WARN")
+                _time.sleep(wait)
+                continue
+            raise
 
 
 def _call_gemini_image(prompt: str, cfg: dict, out_path: str):
     import requests
     import base64
+    import time
     api_key = get_env("GEMINI_API_KEY")
     model = cfg["image_generation"]["gemini"]["model"]
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
@@ -141,17 +205,29 @@ def _call_gemini_image(prompt: str, cfg: dict, out_path: str):
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
     }
-    resp = requests.post(url, json=payload, timeout=180)
-    resp.raise_for_status()
-    data = resp.json()
-    parts = data["candidates"][0]["content"]["parts"]
-    for part in parts:
-        if "inlineData" in part:
-            img_bytes = base64.b64decode(part["inlineData"]["data"])
-            with open(out_path, "wb") as f:
-                f.write(img_bytes)
-            return
-    raise ValueError("No image data returned by Gemini")
+
+    max_retries = 5
+    for attempt in range(1, max_retries + 1):
+        resp = requests.post(url, json=payload, timeout=180)
+        if resp.status_code in (429, 500, 502, 503, 504):
+            wait = min(60, 2 ** attempt)
+            log(f"Gemini image API returned {resp.status_code}, retrying in {wait}s "
+                f"(attempt {attempt}/{max_retries})...", "WARN")
+            time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        data = resp.json()
+        parts = data["candidates"][0]["content"]["parts"]
+        for part in parts:
+            if "inlineData" in part:
+                img_bytes = base64.b64decode(part["inlineData"]["data"])
+                with open(out_path, "wb") as f:
+                    f.write(img_bytes)
+                return
+        raise ValueError("No image data returned by Gemini")
+
+    raise RuntimeError(f"Gemini image API still unavailable after {max_retries} retries "
+                        f"(last status: {resp.status_code}).")
 
 
 def _call_openai_image(prompt: str, cfg: dict, out_path: str):
