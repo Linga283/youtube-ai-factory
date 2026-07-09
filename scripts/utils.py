@@ -205,7 +205,7 @@ def call_ai_image(prompt: str, provider: str, cfg: dict, out_path: str):
 
 
 def _call_replicate_image(prompt: str, cfg: dict, out_path: str):
-    """Generate image via Replicate using Stable Diffusion or FLUX.
+    """Generate image via Replicate using FLUX or Stable Diffusion.
     Free tier: $25/month credit (more than enough for several videos).
     Get a free API key at https://replicate.com and add it as REPLICATE_API_KEY secret.
     Docs: https://replicate.com/docs/
@@ -215,9 +215,9 @@ def _call_replicate_image(prompt: str, cfg: dict, out_path: str):
     
     api_key = get_env("REPLICATE_API_KEY")
     
-    # Use Stable Diffusion 3.5 (fast, reliable, free tier friendly)
+    # Use FLUX Schnell (fast, free tier, works well for illustration style)
     model_config = cfg["image_generation"].get("replicate", {})
-    model_name = model_config.get("model", "stability-ai/stable-diffusion-3.5-large")
+    model_name = model_config.get("model", "black-forest-labs/flux-schnell")
     width, height = cfg["video"]["resolution"]
     
     # Step 1: Get the latest model version ID from Replicate API
@@ -234,8 +234,8 @@ def _call_replicate_image(prompt: str, cfg: dict, out_path: str):
             "prompt": prompt,
             "width": width,
             "height": height,
-            "num_inference_steps": 20,
-            "guidance_scale": 7.5,
+            "num_inference_steps": 4,  # FLUX Schnell uses only 4 steps
+            "guidance_scale": 3.5,
         }
     }
     
@@ -248,7 +248,7 @@ def _call_replicate_image(prompt: str, cfg: dict, out_path: str):
     
     # Step 3: Poll for completion
     max_polls = 360  # ~30 min max wait
-    poll_interval = 5
+    poll_interval = 2
     
     for poll_num in range(max_polls):
         time.sleep(poll_interval)
@@ -280,7 +280,8 @@ def _call_replicate_image(prompt: str, cfg: dict, out_path: str):
         
         elif status in ("starting", "processing"):
             elapsed = (poll_num + 1) * poll_interval
-            log(f"Waiting for image generation... ({elapsed}s elapsed)", "INFO")
+            if (poll_num + 1) % 5 == 0:  # Log every 10 seconds
+                log(f"Waiting for image generation... ({elapsed}s elapsed)", "INFO")
             continue
         
         else:
@@ -292,12 +293,19 @@ def _call_replicate_image(prompt: str, cfg: dict, out_path: str):
 def _get_replicate_model_version(model_name: str, api_key: str) -> str:
     """Fetch the latest version ID for a Replicate model.
     model_name should be in format: owner/model
+    Uses the correct endpoint: https://api.replicate.com/v1/{owner}/{model}/versions
     """
     import requests
     
-    # Use the correct Replicate API endpoint with model name
-    url = f"https://api.replicate.com/v1/models/{model_name}/versions"
-    headers = {"Authorization": f"Token {api_key}", "Accept": "application/json"}
+    # Split model_name into owner and model
+    if "/" not in model_name:
+        raise ValueError(f"Model name must be in format 'owner/model', got: {model_name}")
+    
+    owner, model = model_name.split("/", 1)
+    
+    # Correct Replicate API endpoint for model versions
+    url = f"https://api.replicate.com/v1/{owner}/{model}/versions"
+    headers = {"Authorization": f"Token {api_key}"}
     
     try:
         resp = requests.get(url, headers=headers, timeout=10)
@@ -307,11 +315,9 @@ def _get_replicate_model_version(model_name: str, api_key: str) -> str:
         # If model not found, provide helpful error
         if e.response.status_code == 404:
             raise RuntimeError(
-                f"Model '{model_name}' not found on Replicate. "
-                f"Check the model name at https://replicate.com/explore. "
-                f"Common free tier models: "
-                f"'stability-ai/stable-diffusion-3.5-large', "
-                f"'black-forest-labs/flux-schnell'"
+                f"Model '{model_name}' not found on Replicate or you don't have access. "
+                f"Check https://replicate.com/{owner}/{model} or explore at https://replicate.com/explore. "
+                f"Make sure your REPLICATE_API_KEY is correct."
             )
         raise
     
@@ -320,7 +326,7 @@ def _get_replicate_model_version(model_name: str, api_key: str) -> str:
     elif isinstance(data, list):
         versions = data
     else:
-        raise ValueError(f"Unexpected response format from Replicate versions API: {type(data)}")
+        raise ValueError(f"Unexpected response format from Replicate: {type(data)}")
     
     if not versions:
         raise RuntimeError(f"No versions found for model {model_name}")
@@ -330,7 +336,7 @@ def _get_replicate_model_version(model_name: str, api_key: str) -> str:
     version_id = latest_version.get("id")
     
     if not version_id:
-        raise RuntimeError(f"Could not extract version ID from Replicate response")
+        raise RuntimeError(f"Could not extract version ID from Replicate response: {latest_version}")
     
     log(f"Using model version: {version_id[:12]}...", "INFO")
     return version_id
