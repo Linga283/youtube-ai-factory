@@ -41,9 +41,9 @@ video:
 image_generation:
   provider: "replicate"           # replicate (free tier, $25/month) | pollinations (free) | gemini (paid) | openai (paid)
   replicate:
-    model: "black-forest-labs/flux-schnell"    # Fast, free tier friendly FLUX model. For higher quality try: "lucataco/protovision-xl-lightning"
+    model: "lucataco/protovision-xl-lightning"    # Free, fast, public model on Replicate
   pollinations:
-    model: "flux"                    # free, no billing needed
+    model: "flux"                    # free, no billing needed (fallback if Replicate doesn't work)
   gemini:
     model: "gemini-3.1-flash-image"     # update as needed; image-capable model
     aspect_ratio: "16:9"
