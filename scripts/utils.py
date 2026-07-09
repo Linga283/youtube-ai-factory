@@ -130,10 +130,16 @@ def _call_gemini_text(prompt: str, model: str, max_tokens: int) -> str:
                 f"(attempt {attempt}/{max_retries})...", "WARN")
             time.sleep(wait)
             continue
-        resp.raise_for_status()
+       resp.raise_for_status()
         data = resp.json()
         try:
-            return data["candidates"][0]["content"]["parts"][0]["text"]
+            candidate = data["candidates"][0]
+            finish_reason = candidate.get("finishReason", "")
+            text = candidate["content"]["parts"][0]["text"]
+            if finish_reason == "MAX_TOKENS":
+                log(f"Gemini response was truncated (finishReason=MAX_TOKENS). "
+                    f"Got {len(text)} chars before cutoff. Consider raising max_tokens.", "WARN")
+            return text
         except (KeyError, IndexError):
             raise ValueError(f"Unexpected Gemini response shape: {json.dumps(data)[:500]}")
 
