@@ -174,7 +174,9 @@ def call_ai_image(prompt: str, provider: str, cfg: dict, out_path: str):
     max_attempts = 5
     for attempt in range(1, max_attempts + 1):
         try:
-            if provider == "gemini":
+            if provider == "pollinations":
+                _call_pollinations_image(prompt, cfg, out_path)
+            elif provider == "gemini":
                 _call_gemini_image(prompt, cfg, out_path)
             elif provider == "openai":
                 _call_openai_image(prompt, cfg, out_path)
@@ -198,6 +200,37 @@ def call_ai_image(prompt: str, provider: str, cfg: dict, out_path: str):
                 _time.sleep(wait)
                 continue
             raise
+
+
+def _call_pollinations_image(prompt: str, cfg: dict, out_path: str):
+    """Free image generation via Pollinations.ai (Flux model by default).
+    Get a free API key (no credit card) at https://enter.pollinations.ai
+    and add it as the POLLINATIONS_API_KEY secret. Works without a key too,
+    but a key gives more reliable daily quota.
+    Docs: https://github.com/pollinations/pollinations/blob/main/APIDOCS.md
+    """
+    import requests
+    import urllib.parse
+
+    model = cfg["image_generation"]["pollinations"].get("model", "flux")
+    width, height = cfg["video"]["resolution"]
+    api_key = get_env("POLLINATIONS_API_KEY", required=False)
+
+    encoded_prompt = urllib.parse.quote(prompt)
+    url = f"https://gen.pollinations.ai/image/{encoded_prompt}"
+    params = {"width": width, "height": height, "model": model, "nologo": "true"}
+    if api_key:
+        params["key"] = api_key
+
+    resp = requests.get(url, params=params, timeout=120)
+    resp.raise_for_status()
+
+    content_type = resp.headers.get("content-type", "")
+    if "image" not in content_type:
+        raise ValueError(f"Pollinations did not return an image (content-type: {content_type})")
+
+    with open(out_path, "wb") as f:
+        f.write(resp.content)
 
 
 def _call_gemini_image(prompt: str, cfg: dict, out_path: str):
