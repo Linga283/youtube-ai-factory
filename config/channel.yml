@@ -41,7 +41,7 @@ video:
 image_generation:
   provider: "replicate"           # replicate (free tier, $25/month) | pollinations (free) | gemini (paid) | openai (paid)
   replicate:
-    model: "black-forest-labs/flux-pro"    # FLUX Pro (high quality). Fallback: "stability-ai/stable-diffusion-3"
+    model: "stability-ai/stable-diffusion-3.5-large"    # Free tier friendly, high quality. Also works: "black-forest-labs/flux-schnell" (faster, lower quality)
   pollinations:
     model: "flux"                    # free, no billing needed
   gemini:
