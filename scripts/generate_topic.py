@@ -28,7 +28,7 @@ def main():
     model = cfg["script_generation"]["gemini_model"] if provider == "gemini" else cfg["script_generation"]["openai_model"]
 
     log(f"Requesting topic from {provider} ({model})...")
-    raw = call_ai_text(prompt, provider, model, max_tokens=500)
+    raw = call_ai_text(prompt, provider, model, max_tokens=1024)
     topic_data = extract_json(raw)
 
     for key in ("topic", "title", "learning_goal"):
