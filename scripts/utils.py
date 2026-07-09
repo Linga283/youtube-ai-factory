@@ -130,7 +130,7 @@ def _call_gemini_text(prompt: str, model: str, max_tokens: int) -> str:
                 f"(attempt {attempt}/{max_retries})...", "WARN")
             time.sleep(wait)
             continue
-    resp.raise_for_status()
+        resp.raise_for_status()
         data = resp.json()
         try:
             candidate = data["candidates"][0]
