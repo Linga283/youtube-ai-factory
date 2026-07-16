@@ -45,7 +45,7 @@ image_generation:
   pollinations:
     model: "flux"                    # free, no billing needed (fallback if Replicate doesn't work)
   gemini:
-    model: "gemini-3.1-flash-image"     # update as needed; image-capable model
+    model: "gemini-3.1-flash-lite-image"     # update as needed; image-capable model
     aspect_ratio: "16:9"
   openai:
     model: "gpt-image-1"
