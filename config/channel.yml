@@ -39,7 +39,7 @@ video:
     position: "bottom"
 
 image_generation:
-  provider: "replicate"           # replicate (free tier, $25/month) | pollinations (free) | gemini (paid) | openai (paid)
+  provider: "gemini"           # replicate (free tier, $25/month) | pollinations (free) | gemini (paid) | openai (paid)
   replicate:
     model: "lucataco/protovision-xl-lightning"    # Free, fast, public model on Replicate
   pollinations:
